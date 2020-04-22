@@ -7,6 +7,24 @@ using LinearAlgebra
 using Statistics
 using JLD2
 
+function initialize_parameters(;seed=1234, zero_weights=false)
+    b = zeros(N)
+    c = zeros(Nh)
+    
+    if zero_weights
+        W = zeros(Nh, N)
+        U = zeros(N, Nh)
+    else
+        r = MersenneTwister(seed)
+        W = randn(r, Float64, (Nh, N)) / sqrt(N)
+        U = randn(r, Float64, (N, Nh)) / sqrt(N)
+    end
+
+    global θ = (b, c, U, W)
+
+end
+
+
 function activation(v, idx)
     if idx == 1
         if length(size(v)) == 1
@@ -97,10 +115,10 @@ end
 function gradients(v)
     # please make 'v' a batch
     grads = [ 
-        zeros(size(b,1),batch_size), 
-        zeros(size(c,1), batch_size), 
-        zeros(size(U,1), size(U,2), batch_size), 
-        zeros(size(W,1), size(W,2), batch_size) 
+        zeros(size(θ[1],1),batch_size), 
+        zeros(size(θ[2],1), batch_size), 
+        zeros(size(θ[3],1), size(θ[3],2), batch_size), 
+        zeros(size(θ[4],1), size(θ[4],2), batch_size) 
     ]
     da = zeros(Nh, batch_size)
     

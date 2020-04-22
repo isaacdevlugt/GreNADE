@@ -16,20 +16,15 @@ psi = readdlm(psi_path)[:,1]
 N = size(train_data,2)
 
 # Change these hyperparameters to your liking
-Nh = 20
-
-W = rand(Nh, N)
-U = rand(N, Nh)
-b = rand(N)
-c = rand(Nh)
-
-θ = (b, c, U, W)
+Nh = 20 # number of hidden units 
 
 η = 0.001
 batch_size = 100
 epochs = 100
 log_every = 1
 opt = ADAM(η)
+
+initialize_parameters(seed=9999)
 
 train(
     train_data, 
