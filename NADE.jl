@@ -24,7 +24,6 @@ function initialize_parameters(;seed=1234, zero_weights=false)
 
 end
 
-
 function activation(v, idx)
     if idx == 1
         if length(size(v)) == 1
@@ -151,12 +150,15 @@ function fidelity(space, target)
 end
 
 function statistics_from_observable(observable, samples)
-    obs = observable.(samples)
+    obs = zeros(size(samples,1))
+    for i in 1:size(samples, 1)
+        obs[i] += observable(samples[i,:])
+    end
     mean = sum(obs) / size(samples,1)
     variance = var(obs)
     std_error = std(obs) / sqrt(size(samples,1))
 
-    return mean, variance, std_error
+    return [mean, variance, std_error]
 end 
 
 function train(
@@ -169,13 +171,12 @@ function train(
     target=nothing,
     calc_observable=false,
     num_samples=nothing,
-    obs_name=nothing,
-    observable=nothing
+    observable=nothing,
+    early_stopping=nothing,
+    early_stopping_args=nothing
 )
 
-    # TODO: early stopping
-
-    # batch the training data
+    # TODO: shuffle train_data
     train_data = [view(train_data, k:k+batch_size-1, :) 
         for k in 1:batch_size:size(train_data,1)
     ]
@@ -212,21 +213,34 @@ function train(
             if calc_fidelity
                 fidelities[count] = fidelity(space, target)
                 println("Fidelity = ",fidelities[count])
+
+                if early_stopping(fidelities[count], early_stopping_args)
+                    println("Met early stopping criteria.")
+                    break
+                end
+
             end
 
             if calc_observable
                 samples = sample(num_samples)
-                mean, variance, std_error = statistics_from_observable(
+                stats = statistics_from_observable(
                     observable, samples
                 )
-                observable_stats[count,1] = mean
-                observable_stats[count,2] = variance
-                observable_stats[count,3] = std_error
+                observable_stats[count,1] = stats[1]
+                observable_stats[count,2] = stats[2]
+                observable_stats[count,3] = stats[3]
+
+                println(string(observable)*" = ", stats)
                 
-                println("$obs_name"*" = ", mean)
+                if early_stopping(observable_stats[count,:], early_stopping_args)
+                    println("Met early stopping criteria.")
+                    break
+                end
+
             end
 
             count += 1
+
         end
 
     end
@@ -243,7 +257,7 @@ function train(
     end
     
     if calc_observable
-        open("training_$obs_name", "w") do io
+        open("training_"*string(observable), "w") do io
             writedlm(io, observable_stats)
         end
     end
