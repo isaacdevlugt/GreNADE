@@ -22,19 +22,6 @@ Now, to initialize the NADE parameters, call the ```initialize_parameters()``` f
 
 The biases of the NADE are always set to initialize to zero. Now, specify what is needed to call the ```train``` function to train the NADE.
 
-    train_data;
-    batch_size=100, 
-    opt=ADAM(), 
-    epochs=1000, 
-    log_every=100,
-    calc_fidelity=false,
-    target=nothing,
-    calc_observable=false,
-    num_samples=nothing,
-    observable=nothing,
-    early_stopping=nothing,
-    early_stopping_args=nothing
-
 - ```train_data```: binary input data
 - ```batch_size```: (integer, default: 100) the mini batch size used for calculating gradients
 - ```opt```: the optimization method (e.g. ```ADAM()```). These are optimizers available in Flux.
