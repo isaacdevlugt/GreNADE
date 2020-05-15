@@ -11,9 +11,14 @@ train_path = "tfim1D_samples"
 psi_path = "tfim1D_psi"
 
 train_data = Int.(readdlm(train_path))
-psi = readdlm(psi_path)[:,1]
+true_psi = readdlm(psi_path)[:,1]
 
 N = size(train_data,2)
+NADE_ID = rand(0:10000) 
+
+# names of files to save things to
+fidelity_path = "fidelities_N=$N"*"_ID=$NADE_ID"
+parameter_path = "parameters_N=$N"*"_ID=$NADE_ID"
 
 function fidelity_stopping(current_fid, desired_fid)
     if current_fid >= desired_fid
@@ -44,6 +49,10 @@ function true_magnetization()
     return magnetization / N
 end
 
+function spin_flip(idx, s)
+    s[idx] *= -1.0
+end
+
 function magnetization(sample)
     sample = (sample .* 2) .- 1
     return sum(sample)*sum(sample) / N
@@ -54,15 +63,15 @@ Nh = 20 # number of hidden units
 
 η = 0.001
 batch_size = 100
-epochs = 100
-log_every = 1
+epochs = 500
+log_every = 10
 opt = ADAM(η)
 
-#desired_fid = 0.99
+desired_fid = 0.995
 
-tolerance = 0.05
+#tolerance = 0.05
 # arguments for early_stopping function
-desired_obs = (true_magnetization(), tolerance)
+#desired_obs = (true_magnetization(), tolerance)
 
 initialize_parameters(seed=9999)
 
@@ -70,13 +79,13 @@ train(
     train_data, 
     batch_size=batch_size, 
     opt=opt, 
-    epochs=epochs, 
+    epochs=epochs,
     calc_fidelity=true,
-    target=psi,
-    calc_observable=true,
-    num_samples=10000, 
-    observable=magnetization,
-    log_every=1,
-    early_stopping=observable_stopping,
-    early_stopping_args=desired_obs
+    target=true_psi, 
+    fidelity_path=fidelity_path,
+    early_stopping=fidelity_stopping,
+    early_stopping_args=desired_fid,
+    log_every=1
 )
+
+

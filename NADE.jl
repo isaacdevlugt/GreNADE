@@ -84,6 +84,10 @@ function probability(v)
     return prob
 end
 
+function psi(v)
+    return sqrt.(probability(v))
+end
+
 function sample(num_samples)
     v = rand(0:1, num_samples) # initialize sample
     v = reshape(v, (num_samples,1))
@@ -149,10 +153,10 @@ function fidelity(space, target)
     return dot(target, sqrt.(probability(space)))
 end
 
-function statistics_from_observable(observable, samples)
+function statistics_from_observable(observable, samples; args=nothing)
     obs = zeros(size(samples,1))
     for i in 1:size(samples, 1)
-        obs[i] += observable(samples[i,:])
+        obs[i] += observable(samples[i,:], args=args)
     end
     mean = sum(obs) / size(samples,1)
     variance = var(obs)
@@ -165,22 +169,23 @@ function train(
     train_data;
     batch_size=100, 
     opt=ADAM(), 
-    epochs=1000, 
+    epochs=1000,
+    parameter_path=nothing, 
     log_every=100,
     calc_fidelity=false,
     target=nothing,
     calc_observable=false,
+    fidelity_path=nothing,
     num_samples=nothing,
     observable=nothing,
+    observable_args=nothing,
+    observable_path=nothing,
     early_stopping=nothing,
     early_stopping_args=nothing
 )
 
-    # TODO: shuffle train_data
-    train_data = [view(train_data, k:k+batch_size-1, :) 
-        for k in 1:batch_size:size(train_data,1)
-    ]
-    num_batches = size(train_data, 1)
+    # TODO: what if train_size % batch_size != 0
+    num_batches = Int(size(train_data, 1) / batch_size)
 
     # allocate space for monitoring metrics
     if calc_fidelity
@@ -200,9 +205,12 @@ function train(
 
     count = 1
     for ep in 1:epochs
-        for n in 1:num_batches
+        # shuffle training data
+        train_data[randperm(size(train_data, 1)),:]
+
+        for n in 0:num_batches-1
             # pass through train_data
-            batch = train_data[n]
+            batch = train_data[(n*batch_size+1):(n+1)*batch_size, :]
             grads = gradients(batch)
             update!(opt, θ, grads)
         end 
@@ -214,9 +222,11 @@ function train(
                 fidelities[count] = fidelity(space, target)
                 println("Fidelity = ",fidelities[count])
 
-                if early_stopping(fidelities[count], early_stopping_args)
-                    println("Met early stopping criteria.")
-                    break
+                if early_stopping != nothing
+                    if early_stopping(fidelities[count], early_stopping_args)
+                        println("Met early stopping criteria.")
+                        break
+                    end
                 end
 
             end
@@ -224,17 +234,18 @@ function train(
             if calc_observable
                 samples = sample(num_samples)
                 stats = statistics_from_observable(
-                    observable, samples
+                    observable, samples, args=observable_args
                 )
                 observable_stats[count,1] = stats[1]
                 observable_stats[count,2] = stats[2]
                 observable_stats[count,3] = stats[3]
 
                 println(string(observable)*" = ", stats)
-                
-                if early_stopping(observable_stats[count,:], early_stopping_args)
-                    println("Met early stopping criteria.")
-                    break
+                if early_stopping != nothing 
+                    if early_stopping(observable_stats[count,:], early_stopping_args)
+                        println("Met early stopping criteria.")
+                        break
+                    end
                 end
 
             end
@@ -245,19 +256,34 @@ function train(
 
     end
 
-    # TODO: better file naming conventions
     # save NADE parameters
-    @save "NADE_params.jld2" θ
+    if parameter_path != nothing
+        @save parameter_path*".jld2" θ
+    else
+        @save "NADE_parameters.jld2" θ
+    end
 
     # save metrics
-    if calc_fidelity    
-        open("training_fidelities", "w") do io
+    if calc_fidelity   
+        if fidelity_path != nothing
+            tmp = fidelity_path
+        else
+            tmp = "training_fidelities"
+        end
+ 
+        open(tmp, "w") do io
             writedlm(io, fidelities)
         end
     end
     
     if calc_observable
-        open("training_"*string(observable), "w") do io
+        if observable_path != nothing
+            tmp = observable_path
+        else
+            tmp = "training_"*string(observable)
+        end
+
+        open(tmp, "w") do io
             writedlm(io, observable_stats)
         end
     end
