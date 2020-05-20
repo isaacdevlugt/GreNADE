@@ -89,12 +89,27 @@ function psi(v)
 end
 
 function sample(num_samples)
-    v = rand(0:1, num_samples) # initialize sample
-    v = reshape(v, (num_samples,1))
-    for idx in 2:N
-        prob = prob_v_given_vlt(v, idx)
-        v = hcat(v, rand.(Bernoulli.(prob)))
+    # meant for > 1 sample
+
+    v = [] # put samples here
+    a = θ[2]
+    for i in 2:num_samples
+        a = hcat(a,θ[2])
     end
+
+    for i in 1:N
+        h = σ.(a)
+        prob = σ.(θ[1][i] .+ transpose(h) * θ[3][i,:])
+        v_i = rand.(Bernoulli.(prob))
+        if i == 1
+            v = v_i
+            v = reshape(v, (num_samples,1))
+        else
+            v = hcat(v, v_i) 
+        end
+        a .+= θ[4][:,i] .* transpose(v[:,i])
+    end
+
     return v
 end
 
@@ -111,7 +126,7 @@ function NLL(v)
         end 
         nll = sum(nll) / size(v,1)
     end
-                                                                        
+
     return nll                                                                  
 end
 
@@ -162,7 +177,7 @@ function statistics_from_observable(observable, samples; args=nothing)
     variance = var(obs)
     std_error = std(obs) / sqrt(size(samples,1))
 
-    return [mean, variance, std_error]
+    return [mean variance std_error]
 end 
 
 function train(
@@ -190,12 +205,12 @@ function train(
     # allocate space for monitoring metrics
     if calc_fidelity
         space = generate_hilbert_space()
-        fidelities = zeros(Int(epochs / log_every))
+        fidelities = []
     end
 
     if calc_observable
         # observable value (mean), variance, std error
-        observable_stats = zeros(Int(epochs / log_every), 3)
+        observable_stats = []
     end
 
     # TODO
@@ -219,11 +234,13 @@ function train(
             println("epoch: ", ep)
             
             if calc_fidelity
-                fidelities[count] = fidelity(space, target)
-                println("Fidelity = ",fidelities[count])
+
+                fid = fidelity(space, target)
+                fidelities = vcat(fid, fidelities)
+                println("Fidelity = ",fid)
 
                 if early_stopping != nothing
-                    if early_stopping(fidelities[count], early_stopping_args)
+                    if early_stopping(fid, early_stopping_args)
                         println("Met early stopping criteria.")
                         break
                     end
@@ -236,17 +253,19 @@ function train(
                 stats = statistics_from_observable(
                     observable, samples, args=observable_args
                 )
-                observable_stats[count,1] = stats[1]
-                observable_stats[count,2] = stats[2]
-                observable_stats[count,3] = stats[3]
+                if count == 1
+                    observable_stats = stats
+                else
+                    observbale_stats = vcat(stats, observable_stats)
+                end
 
                 println(string(observable)*" = ", stats)
-                if early_stopping != nothing 
-                    if early_stopping(observable_stats[count,:], early_stopping_args)
-                        println("Met early stopping criteria.")
-                        break
-                    end
-                end
+                #if early_stopping != nothing 
+                #    if early_stopping(observable_stats[count,:], early_stopping_args)
+                #        println("Met early stopping criteria.")
+                #        break
+                #    end
+                #end
 
             end
 
