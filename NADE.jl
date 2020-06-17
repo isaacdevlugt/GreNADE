@@ -190,14 +190,14 @@ function train(
     calc_fidelity=false,
     target=nothing,
     calc_observable=false,
-    fidelity_path=nothing,
     num_samples=nothing,
     observable=nothing,
     observable_args=nothing,
-    observable_path=nothing,
     early_stopping=nothing,
     early_stopping_args=nothing
 )
+
+    return_args = []
 
     # TODO: what if train_size % batch_size != 0
     num_batches = Int(size(train_data, 1) / batch_size)
@@ -212,11 +212,6 @@ function train(
         # observable value (mean), variance, std error
         observable_stats = []
     end
-
-    # TODO
-    #if calc_NLL
-    #    NLLs = zeros(epochs / log_every)
-    #end
 
     count = 1
     for ep in 1:epochs
@@ -234,7 +229,6 @@ function train(
             println("epoch: ", ep)
             
             if calc_fidelity
-
                 fid = fidelity(space, target)
                 fidelities = vcat(fid, fidelities)
                 println("Fidelity = ",fid)
@@ -275,39 +269,20 @@ function train(
 
     end
 
-    # save NADE parameters
-    if parameter_path != nothing
-        @save parameter_path*".jld2" θ
-    else
-        @save "NADE_parameters.jld2" θ
-    end
-
-    # save metrics
-    if calc_fidelity   
-        if fidelity_path != nothing
-            tmp = fidelity_path
-        else
-            tmp = "training_fidelities"
-        end
- 
-        open(tmp, "w") do io
-            writedlm(io, fidelities)
-        end
+    if calc_fidelity  
+        push!(return_args, fidelities) 
     end
     
     if calc_observable
-        if observable_path != nothing
-            tmp = observable_path
-        else
-            tmp = "training_"*string(observable)
-        end
-
-        open(tmp, "w") do io
-            writedlm(io, observable_stats)
-        end
+        push!(return_args, observable_stats) 
     end
- 
+    return return_args 
+
 end
+
+function save_params(path)
+    @save path θ
+end 
 
 function generate_hilbert_space()
     dim = [i for i in 0:2^N-1] 

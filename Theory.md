@@ -2,11 +2,11 @@
 
 ## Introduction
 
-When algorithmically modeling ground (or thermal) states in computational / statistical physics, an important issue that plagues some algorithms is the equilibration time to generate uncorrelated samples from our model (e.g. Markov chain Monte Carlo). Typically, these algorithms that employ some form of Markov chain are required in order to avoid calculating the exponentially-scaling partition function. Algorithms that produce samples via a Markov chain are usually not desirable, albeit there are plenty of algorithms in existence wherein the equilibration time to produce uncorrelated samples from the model is relatively small. And sometimes, Markov chain methods are all we have. But, generally speaking, a model where samples can only be drawn in this manner is undesirable if alternatives are available.
+When algorithmically modeling ground (or thermal) states in computational / statistical physics, an important issue that plagues some algorithms is the equilibration time to generate uncorrelated samples from our model (e.g. Markov Chain Monte Carlo). Typically, these algorithms that employ some form of Markov Chain are required in order to avoid calculating the exponentially-scaling partition function. Algorithms that produce samples via a Markov Chain are usually not desirable, albeit there are plenty of algorithms in existence wherein the equilibration time to produce uncorrelated samples from the model is relatively small. And sometimes, Markov Chain methods are all we have. But, generally speaking, a model where samples can only be drawn in this manner is undesirable if alternatives are available.
 
-In machine learning, the Restricted Boltzmann machine (RBM) is a generative model that is burdened by a Markov-chain-like procedure to produce samples called Gibbs sampling. However, even though the RBM has this undesirable property, it has many properties that physicists and people in the machine learning community find appealing. And, in some cases, the equilibration time in the Gibbs sampling procedure is quite small.
+In machine learning, the Restricted Boltzmann machine (RBM) is a generative model that is burdened by a Markov Chain-like procedure to produce samples called Gibbs sampling. However, even though the RBM has this undesirable property it has many properties that physicists and people in the machine learning community find very appealing. And in some cases, the equilibration time in the Gibbs sampling procedure is quite small.
 
-Algorithms wherein the partition function need not be calculated, yet the probability distribution defined by the model can be directly sampled, and therefore a Markov chain is not required, are called autoregressive. There exists generative models that have this desirable property (e.g. recurrent neural networks). In this blog post, we will go through one autoregressive generative model called a neural autoregressive distribtuions estimator (NADE). Oddly enough, its network architecture stems from an RBM.
+Algorithms wherein the partition function need not be calculated, yet the probability distribution defined by the model can be directly/exactly sampled, and therefore a Markov Chain is not required, are called autoregressive. There exists generative models that have this desirable property (e.g. recurrent neural networks). In this blog post, we will go through one autoregressive generative model called a neural autoregressive distribtuions estimator (NADE). Oddly enough, its network architecture stems from an RBM. This blog post is based upon Refs. [1-3].
 
 ## An RBM as a Bayesian Network
 
@@ -22,7 +22,7 @@ $$
 p(\mathbf{v}) = \frac{e^{-\sum_{\mathbf{h} \in \mathcal{H}_{\mathbf{h}}}E(\mathbf{v},h)}}{Z},
 $$
 
-where $\mathbf{v}$ and $\mathbf{h}$ denote the visible and hidden layer of the RBM, respectively. Models that are autoregressive define a probability distribution that is the product of conditional disitributions of the $i^{\text{th}}$ visible unit given all preceeding visible units.
+where $\mathbf{v}$ and $\mathbf{h}$ denote the visible and hidden layer of the RBM, respectively. Models that are autoregressive define a probability distribution that is the product of conditional disitributions of the $i^{\text{th}}$ visible unit ($v_i$) given all preceeding visible units ($\mathbf{v}_{<i}$).
 
 $$
 p_{\text{autoreg.}}(\mathbf{v}) = \prod_{i} p(v_i \vert \mathbf{v}_{<i})
@@ -34,7 +34,7 @@ $$
 p(\mathbf{v}) = \prod_{i} p(v_i \vert \mathbf{v}_{<i}) = \prod_{i} \frac{p(v_i, \mathbf{v}_{ \lt i})}{p(\mathbf{v}_{ \lt i})}
 $$
 
-However, this is not tractable. If we can approximate the numerator and denominator, then there may be instances where the above expression is tractable and, therefore, we've made the RBM autoregressive.
+However, $p(v_i, \mathbf{v}_{ \lt i})$ nor $p(\mathbf{v}_{ \lt i})$ are tractable. If we can approximate both quantities, then there might be instances where the above expression is tractable and we've made the RBM autoregressive.
 
 Consider a mean-field approach for the approximation (recall that a mean-field approximation just relates to the idea that our variables are independent, e.g. $p(a,b) = p(a)p(b)$): approximate $p(v_i \vert \mathbf{v}_{<i})$ by finding a tractable approximation for $p(v_i, \mathbf{v}_{>i}, \mathbf{h} \vert \mathbf{v}_{<i}) \approx q(v_i, \mathbf{v}_{>i}, \mathbf{h} \vert \mathbf{v}_{<i})$ such that $q(v_i \vert \mathbf{v}_{<i})$ is easily obtainable. In our mean-field approximation for $p(v_i, \mathbf{v}_{>i}, \mathbf{h} \vert \mathbf{v}_{<i})$, 
 
@@ -166,3 +166,18 @@ $$
 &\text{return} \qquad \delta \mathbf{b}, \delta \mathbf{c}, \delta \mathbf{W}, \delta \mathbf{U}
 \end{aligned}
 $$
+
+## Try for yourself!
+
+I have open-source code for using NADEs to do quantum state reconstruction. It is relatively new and continues to be updated with more functionality regularily. Go check it out [here](https://github.com/isaacdevlugt/GreNADE.git).
+
+## References 
+
+[1] B. McNaughton, M. V. Milošević, A. Perali, and S. Pilati, ArXiv:2002.04292 (2020).
+
+[2] H. Larochelle and I. Murray, AISTATS 15, 9 (2011).
+
+[3] B. Uria, M.-A. Côté, K. Gregor, I. Murray, and H. Larochelle, ArXiv:1605.02226 (2016).
+
+
+
