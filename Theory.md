@@ -2,15 +2,17 @@
 
 ## Introduction
 
-When algorithmically modeling ground (or thermal) states in computational / statistical physics, an important issue that plagues some algorithms is the equilibration time to generate uncorrelated samples from our model (e.g. Markov Chain Monte Carlo). Typically, these algorithms that employ some form of Markov Chain are required in order to avoid calculating the exponentially-scaling partition function. Algorithms that produce samples via a Markov Chain are usually not desirable, albeit there are plenty of algorithms in existence wherein the equilibration time to produce uncorrelated samples from the model is relatively small. And sometimes, Markov Chain methods are all we have. But, generally speaking, a model where samples can only be drawn in this manner is undesirable if alternatives are available.
+Modeling states (ground or thermal) in computational physics requires calculating the partition function - an expression that scales exponentially with the number of constituents and is thus generally intractable. As a workaround, physicists commonly use probabilistic sampling methods, many of which are based on a Markov Chain (MC). A huge drawback about MC-based sampling is that the equilibration time required to generate uncorrelated samples can be very long. 
 
-In machine learning, the Restricted Boltzmann machine (RBM) is a generative model that is burdened by a Markov Chain-like procedure to produce samples called Gibbs sampling. However, even though the RBM has this undesirable property it has many properties that physicists and people in the machine learning community find very appealing. And in some cases, the equilibration time in the Gibbs sampling procedure is quite small.
+Restricted Boltzmann Machines (RBMs) are a class of generative models that have many appealing properties as a tool for statistical physics, yet it too is burdened by a MC-like procedure called Gibbs sampling.
 
-Algorithms wherein the partition function need not be calculated, yet the probability distribution defined by the model can be directly/exactly sampled, and therefore a Markov Chain is not required, are called autoregressive. There exists generative models that have this desirable property (e.g. recurrent neural networks). In this blog post, we will go through one autoregressive generative model called a neural autoregressive distribtuions estimator (NADE). Oddly enough, its network architecture stems from an RBM. This blog post is based upon Refs. [1-3].
+In this post, we discuss an alternative that can be used for the purpose of state modeling: Neural Autoregressive Distributions Estimators (NADEs). The NADE is a generative model which is inspired by the RBM architecture, but unlike the RBM, it does not employ a MC-based sampling method. Algorithms wherein the partition function need not be calculated, yet the probability distribution defined by the model can be directly sampled, are called autoregressive.
+
+
 
 ## An RBM as a Bayesian Network
 
-As stated previously, the probability of a sample's (or configuration from a Hilbert space) occurence as modelled by an RBM requires the calculation of the partition function, which is intractable. Recall that for an RBM,
+The probability of a sample's occurence, as modelled by an RBM, requires the calculation of the partition function, which is intractable. Recall that for an RBM,
 
 $$
 Z = \sum_{\mathbf{h} \in \mathcal{H}_{\mathbf{h}}} \sum_{\mathbf{v} \in \mathcal{H}_{\mathbf{v}}} e^{-E(\mathbf{v},\mathbf{h})},
@@ -22,16 +24,16 @@ $$
 p(\mathbf{v}) = \frac{e^{-\sum_{\mathbf{h} \in \mathcal{H}_{\mathbf{h}}}E(\mathbf{v},h)}}{Z},
 $$
 
-where $\mathbf{v}$ and $\mathbf{h}$ denote the visible and hidden layer of the RBM, respectively. Models that are autoregressive define a probability distribution that is the product of conditional disitributions of the $i^{\text{th}}$ visible unit ($v_i$) given all preceeding visible units ($\mathbf{v}_{<i}$).
+where $\mathbf{v}$ and $\mathbf{h}$ denote the visible and hidden layer of the RBM, respectively. Autoregressive models define a probability distribution that is the product of conditional disitributions of the $i^{\text{th}}$ visible unit ($v_i$) given all preceeding visible units ($\mathbf{v}_{<i}$):
 
 $$
-p_{\text{autoreg.}}(\mathbf{v}) = \prod_{i} p(v_i \vert \mathbf{v}_{<i})
+p_{\text{autoreg.}}(\mathbf{v}) = \prod_{i} p(v_i \vert \mathbf{v}_{<i}).
 $$
 
-If we can write the probability distribution defined by the RBM as a product of tractable conditionals like that of autoregressive models, then we can bypass calculating $Z$ entirely and directly sample the distribution. We can write $p(\mathbf{v})$ exactly as a product of conditionals by employing Baye's rule.
+If we can write the probability distribution defined by the RBM as a product of tractable conditionals like that of autoregressive models, then we can bypass calculating $Z$ entirely and directly sample the distribution. We can write $p(\mathbf{v})$ exactly as a product of conditionals by employing Baye's rule:
 
 $$
-p(\mathbf{v}) = \prod_{i} p(v_i \vert \mathbf{v}_{<i}) = \prod_{i} \frac{p(v_i, \mathbf{v}_{ \lt i})}{p(\mathbf{v}_{ \lt i})}
+p(\mathbf{v}) = \prod_{i} p(v_i \vert \mathbf{v}_{<i}) = \prod_{i} \frac{p(v_i, \mathbf{v}_{ \lt i})}{p(\mathbf{v}_{ \lt i})}.
 $$
 
 However, $p(v_i, \mathbf{v}_{ \lt i})$ nor $p(\mathbf{v}_{ \lt i})$ are tractable. If we can approximate both quantities, then there might be instances where the above expression is tractable and we've made the RBM autoregressive.
@@ -45,7 +47,7 @@ $$
 \end{aligned}
 $$
 
-Noting that $v_i \in 0,1$ (we will strictly deal with binary variables in this post), write the conditional distribution $q(v_j \vert \mathbf{v}_{<i})$ as binomial with a success ($v_i = 1$) probability $\mu_j (i)$.
+Noting that $v_i \in 0,1$ (we will strictly deal with binary variables in this post), write the conditional distribution $q(v_j \vert \mathbf{v}_{<i})$ as binomial with a success ($v_i = 1$) probability $\mu_j (i)$:
 
 $$
 \begin{aligned}
@@ -78,7 +80,7 @@ $$
 \end{aligned}
 $$
 
-But, what are $\mu_j(i)$ and $\tau_k(i)$? Find $\mu_j(i)$ for $j \geq i$ and $\tau_k(i)$ which minimize the KL divergence between $q(v_i, \mathbf{v}_{>i}, \mathbf{h} \vert \mathbf{v}_{<i})$ and $p(v_i, \mathbf{v}_{>i}, \mathbf{h} \vert \mathbf{v}_{<i})$. There exists an algebraic solution for this problem:
+But what are $\mu_j(i)$ and $\tau_k(i)$? We need to find $\mu_j(i)$ for $j \geq i$ and $\tau_k(i)$ which minimize the KL divergence between $q(v_i, \mathbf{v}_{>i}, \mathbf{h} \vert \mathbf{v}_{<i})$ and $p(v_i, \mathbf{v}_{>i}, \mathbf{h} \vert \mathbf{v}_{<i})$. There exists an algebraic solution for this problem:
 
 $$
 \begin{aligned}
@@ -87,13 +89,14 @@ $$
 \end{aligned}
 $$
 
-Note that these expressions depend on their counterparts (i.e. $\tau_k(i)$ depends on $\mu_j(i)$ and visa versa), and there is no exact solution for this set of non-linear equations. Similar to a Gibbs sampling procedure in an RBM where we bounce back and forth between the hidden and visible layers to infer the other conditioned upon the current, we can bounce back and forth between $\mu_j(i)$ and $\tau_k(i)$ (initialize them to 0) and we are guaranteed to come to some equilibrium values of $\mu_j(i)$ and $\tau_k(i)$. Then, $\mu_j(i)$ is used to approximate $p(v_j = 1 \vert \mathbf{v}_{<i})$ and we have an autoregressive model!
+Note that these expressions depend on their counterparts (i.e. $\tau_k(i)$ depends on $\mu_j(i)$ and vice versa), and there is no exact solution for this set of non-linear equations. Similar to a Gibbs sampling procedure in an RBM where we bounce back and forth between the hidden and visible layers to infer the other conditioned upon the current, we can bounce back and forth between $\mu_j(i)$ and $\tau_k(i)$ (initialize them to 0), and we are guaranteed to converge to some equilibrium values of $\mu_j(i)$ and $\tau_k(i)$. Then, $\mu_j(i)$ is used to approximate $p(v_j = 1 \vert \mathbf{v}_{<i})$ and we have an autoregressive model!
 
-Unfortunately, in making the RBM (approximately) autoregressive we also encounter computational bottlenecks. To determine $\mu_j(i)$ and $\tau_k(i)$ takes $O(10)$ iterations, and it turns out that each iteration is quite costly. Moreover, we'd need to do this for every $v_i$. So, this mean-field approximation to make an RBM autoregressive does not actually end up being tractable.
+Unfortunately, in making the RBM (approximately) autoregressive we also encounter computational bottlenecks. To determine $\mu_j(i)$ and $\tau_k(i)$ takes $O(10)$ iterations, and it turns out that each iteration is quite costly. Moreover, we would need to do this for every $v_i$. So, this mean-field approximation to make an RBM autoregressive does not actually end up being tractable.
+
 
 ## NADEs: Building off of the mean-field Bayesian RBM
 
-Let's build off of this mean-field idea presented in the previous section. However, it's at this point where the physical ties to an RBM sort of vanish. How the NADE architecture is formed is simply "inspired by" this mean-field approximation for an RBM. 
+Let's build off of this mean-field idea presented in the previous section. However, it's at this point where the physical ties to an RBM vanish. How the NADE architecture is formed is simply "inspired by" this mean-field approximation for an RBM. 
 
 For one iteration with $\mu_j(i)$ initialized to zero,
 
@@ -103,13 +106,13 @@ $$
 \end{aligned}
 $$
 
-If you stare at this long enough, you'll realize that this is simply many feed-forward networks each with one hidden layer and shared weights going across the networks! There are $N$ networks to train, where $N$ is the number of visible units, the input to the $i^{th}$ network is the $j<i$ preceeding parts of the visible layer (i.e. all visible unit values before the $i^{th}$ visible unit) as dictated by $\sum_{j<i}$. The activation / hidden layer is given by $\tau_k(i)^{(0)}$, and the ouput of the network is $\mu_j(i)^{(1)}$ which we take to be the desired conditional $p(v_i = 1 \vert \mathbf{v}_{<i})$. The model is inherently autoregressive!
+If you stare at this long enough, you'll realize that this is simply many feed-forward networks, each with one hidden layer and shared weights going across the networks! There are $N$ networks to train, where $N$ is the number of visible units, and the input to the $i^{th}$ network is the $j<i$ preceeding parts of the visible layer (i.e. all visible unit values before the $i^{th}$ visible unit) as dictated by $\sum_{j<i}$. The activation of the hidden layer is given by $\tau_k(i)^{(0)}$, and the ouput of the network is $\mu_j(i)^{(1)}$ which we take to be the desired conditional $p(v_i = 1 \vert \mathbf{v}_{<i})$. The model is inherently autoregressive!
 
 ![Illustration of a NADE. Here, $p_i = p(v_i = 1 \vert \mathbf{v}_{\lt i})$. Red lines correspond to shared connections. The network to the right is simply an unfolded version of the fourth feed-forward neural network.](figures/NADE_full.png)
 
 ![An unfolded version of the fourth feed-forward neural network in the full NADE illustration.](figures/NADE_expand.png)
 
-It turns out to be benefitial computationally to undo the shared parameters between the output and input (they share the same weight matrix!). Instead, we can just train a seperate set of weights connecting the output of the networks with the hidden layers. Each of the $N$ networks look like the following.
+It turns out to be computationally benefitial to train a seperate set of weights connecting the output of the networks with the hidden layers, rather than having a shared weight matrix. Each of the $N$ networks looks like the following:
 
 $$
 \begin{aligned}
@@ -119,7 +122,7 @@ $$
 \end{aligned}
 $$
 
-There's a lot of reusing parameters in each of the $N$ networks. Let's just jot some things down to understand the architecture better.
+There is a lot of reusing parameters in each of the $N$ networks. Let's just jot some things down to understand the architecture better.
 
 - For $N$ sites, there are $N$ hidden layers that each comprise of $n_h$ neurons.
 - $\mathbf{W}$ ($n_h \times N$ matrix) and $\mathbf{c}$ are shared by all $N$ networks.
@@ -134,7 +137,7 @@ $$
 \end{aligned}
 $$
 
-The autoregressive probability, $p(\mathbf{v})$, is calculated via the following procedure.
+The autoregressive probability, $p(\mathbf{v})$, is calculated via the following procedure:
 
 $$
 \begin{aligned}
@@ -169,7 +172,7 @@ $$
 
 ## Try for yourself!
 
-I have open-source code for using NADEs to do quantum state reconstruction. It is relatively new and continues to be updated with more functionality regularily. Go check it out [here](https://github.com/isaacdevlugt/GreNADE.git).
+I have open-source code for using NADEs to do quantum state reconstruction. It is relatively new and continues to be regularily updated with more functionality. Go check it out [here](https://github.com/isaacdevlugt/GreNADE.git).
 
 ## References 
 
@@ -178,6 +181,3 @@ I have open-source code for using NADEs to do quantum state reconstruction. It i
 [2] H. Larochelle and I. Murray, AISTATS 15, 9 (2011).
 
 [3] B. Uria, M.-A. Côté, K. Gregor, I. Murray, and H. Larochelle, ArXiv:1605.02226 (2016).
-
-
-
